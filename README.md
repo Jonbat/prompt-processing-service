@@ -17,6 +17,11 @@ Design
 - Retry / Backoff: `call_with_retries` implements basic exponential backoff for HTTP 429 responses (configurable `max_retries` and `base_backoff`).
 - Aggregation: Results are saved to `data/results_{batch_id}.json` once the batch completes.
 
+Architecture Diagram
+- Visual architecture is available below and in `docs/diagram.svg`.
+
+![Architecture diagram](docs/diagram.svg)
+
 Testing
 - Unit tests use `pytest` and `pytest-asyncio`. The retry behavior is tested in `tests/test_retry.py` by simulating 429 responses with a mock call.
 
