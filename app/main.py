@@ -8,8 +8,16 @@ from fastapi import BackgroundTasks, FastAPI, File, UploadFile, HTTPException, B
 from fastapi.responses import JSONResponse
 
 from .worker import process_batch
+from . import db
 import os
 import json
+
+
+# initialize sqlite DB
+try:
+    db.init_db()
+except Exception:
+    pass
 
 app = FastAPI(title="AI Batch Service")
 
@@ -42,37 +50,29 @@ async def upload_batch(background: BackgroundTasks, file: UploadFile = File(...)
 
 @app.get("/batch/{batch_id}/results")
 async def get_results(batch_id: str):
-    path = f"/workspaces/ai-batch-service/data/results_{batch_id}.json"
     try:
-        with open(path, "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Results not ready")
-    return data
+        data = db.get_results(batch_id)
+        # return 404 if no rows exist for this batch
+        if not data or not data.get("results"):
+            raise HTTPException(status_code=404, detail="Results not ready")
+        return data
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unable to read results from DB")
 
 
 @app.get("/batch/{batch_id}/status")
 async def get_status(batch_id: str):
-    path = f"/workspaces/ai-batch-service/data/progress_{batch_id}.json"
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except Exception:
-            raise HTTPException(status_code=500, detail="Unable to read progress file")
-
-    # If no progress file exists, check if results exist (completed)
-    results_path = f"/workspaces/ai-batch-service/data/results_{batch_id}.json"
-    if os.path.exists(results_path):
-        try:
-            with open(results_path, "r") as f:
-                data = json.load(f)
-            total = len(data.get("results", []))
-            return {"batch_id": batch_id, "total": total, "completed": total}
-        except Exception:
-            raise HTTPException(status_code=500, detail="Unable to read results file")
-
-    raise HTTPException(status_code=404, detail="Batch not found or not started yet")
+    try:
+        prog = db.get_progress(batch_id)
+        if not prog:
+            raise HTTPException(status_code=404, detail="Batch not found or not started yet")
+        return prog
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unable to read progress from DB")
 
 
 @app.post("/mock_external_api")

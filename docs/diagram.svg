@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="360" viewBox="0 0 1000 360">
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="380" viewBox="0 0 1000 380">
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#333" />
@@ -15,49 +15,51 @@
   <!-- Client -->
   <rect x="20" y="30" width="160" height="60" class="box" />
   <text x="100" y="60" text-anchor="middle" class="title">Client</text>
-  <text x="100" y="76" text-anchor="middle" class="small">POST /batch (JSON)</text>
+  <text x="100" y="76" text-anchor="middle" class="small">POST /batch</text>
 
   <!-- API -->
-  <rect x="220" y="20" width="200" height="80" class="box" />
-  <text x="320" y="45" text-anchor="middle" class="title">FastAPI</text>
-  <text x="320" y="62" text-anchor="middle" class="small">/batch → BackgroundTasks</text>
+  <rect x="220" y="20" width="220" height="90" class="box" />
+  <text x="330" y="45" text-anchor="middle" class="title">FastAPI</text>
+  <text x="330" y="64" text-anchor="middle" class="small">/batch → BackgroundTasks</text>
 
   <!-- Worker Pool -->
-  <rect x="460" y="10" width="240" height="120" class="box" />
-  <text x="580" y="36" text-anchor="middle" class="title">Worker Pool</text>
-  <text x="580" y="56" text-anchor="middle" class="small">asyncio tasks + Semaphore</text>
-  <text x="580" y="74" text-anchor="middle" class="small">bounded concurrency (e.g. 10)</text>
+  <rect x="500" y="10" width="260" height="120" class="box" />
+  <text x="630" y="36" text-anchor="middle" class="title">Worker Pool</text>
+  <text x="630" y="56" text-anchor="middle" class="small">asyncio tasks + Semaphore</text>
+  <text x="630" y="74" text-anchor="middle" class="small">retries/backoff on 429</text>
 
   <!-- Mock External -->
-  <rect x="740" y="30" width="200" height="60" class="box" />
-  <text x="840" y="50" text-anchor="middle" class="title">Mock External API</text>
-  <text x="840" y="66" text-anchor="middle" class="small">simulates 429 / responses</text>
+  <rect x="780" y="30" width="180" height="60" class="box" />
+  <text x="870" y="50" text-anchor="middle" class="title">Mock External API</text>
+  <text x="870" y="66" text-anchor="middle" class="small">simulates 429 / responses</text>
 
-  <!-- Aggregation / Storage -->
-  <rect x="460" y="160" width="320" height="90" class="box" />
-  <text x="620" y="185" text-anchor="middle" class="title">Aggregator</text>
-  <text x="620" y="204" text-anchor="middle" class="small">writes data/results_{batch_id}.json</text>
+  <!-- Database -->
+  <rect x="460" y="160" width="300" height="90" class="box" />
+  <text x="610" y="185" text-anchor="middle" class="title">SQLite (data/db.sqlite3)</text>
+  <text x="610" y="204" text-anchor="middle" class="small">progress + results (single source of truth)</text>
 
   <!-- Status API -->
-  <rect x="220" y="140" width="180" height="60" class="box" />
-  <text x="310" y="160" text-anchor="middle" class="title">Status API</text>
-  <text x="310" y="176" text-anchor="middle" class="small">reads progress_{batch_id}.json</text>
+  <rect x="220" y="160" width="200" height="70" class="box" />
+  <text x="320" y="185" text-anchor="middle" class="title">Status / Results API</text>
+  <text x="320" y="203" text-anchor="middle" class="small">reads from SQLite</text>
 
   <!-- Arrows -->
   <path d="M180,60 L220,60" class="arrow" />
-  <path d="M420,60 L460,60" class="arrow" />
-  <path d="M700,60 L740,60" class="arrow" />
+  <path d="M440,60 L500,60" class="arrow" />
+  <path d="M760,60 L780,60" class="arrow" />
 
-  <!-- API to Status and Aggregator to Status -->
-  <path d="M320,100 L320,140" class="arrow" />
-  <path d="M580,190 L400,170" class="arrow" />
+  <!-- Worker to DB -->
+  <path d="M630,130 L630,160" class="arrow" />
 
-  <!-- From Worker Pool down to Aggregator and back to client via results endpoint -->
-  <path d="M580,130 L580,160" class="arrow" />
-  <path d="M580,250 L320,250" class="arrow" />
+  <!-- API to Status/Results (reads DB) -->
+  <path d="M330,110 L330,160" class="arrow" />
+  <path d="M520,205 L420,190" class="arrow" />
+
+  <!-- Results endpoint back to client -->
+  <path d="M420,250 L320,250" class="arrow" />
   <rect x="260" y="230" width="120" height="40" class="box" />
   <text x="320" y="255" text-anchor="middle" class="small">GET /batch/{id}/results</text>
 
   <!-- Notes -->
-  <text x="20" y="330" class="small">Notes: retries/backoff on 429, bounded concurrency via Semaphore, background processing via FastAPI BackgroundTasks</text>
+  <text x="20" y="350" class="small">Notes: background processing, bounded concurrency, retries/backoff, SQLite as the single source of truth for progress/results</text>
 </svg>

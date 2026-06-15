@@ -1,9 +1,22 @@
 # AI Prompt Batch Processing Service
 
-Summary
-- Minimal FastAPI service that accepts a JSON array of prompts, processes them concurrently against a mock rate-limited inference endpoint, and writes aggregated results to JSON files under `data/`.
+Minimal FastAPI that accepts a JSON batch of prompts, processes them concurrently
+against an in-process mock inference endpoint, and persists progress/results to SQLite.
 
-Quickstart (minimal)
+Summary
+- Persistence: SQLite at data/db.sqlite3 (managed by `app/db.py`).
+- Endpoints:
+  - `POST /batch` — submit a JSON array of prompt strings; returns `{ "batch_id": "..." }`.
+  - `GET /batch/{id}/status` — progress summary (total / completed) read from the DB.
+  - `GET /batch/{id}/results` — aggregated prompt results read from the DB.
+  - `POST /mock_external_api` — local mock inference endpoint used by the worker.
+
+Worker behavior
+- Bounded concurrency using `asyncio.Semaphore` (default concurrency configurable in `app/worker.py`).
+- Exponential retry/backoff for 429 responses (`call_with_retries`).
+- SQLite updates are performed via `asyncio.to_thread` to avoid blocking the event loop.
+
+Quickstart
 1. Create and activate a virtual environment and install dependencies:
 
 ```bash
@@ -18,53 +31,34 @@ source .venv/bin/activate
 .venv/bin/python -m uvicorn app.main:app --reload --port 8000
 ```
 
-3. Submit a batch (example):
+3. Submit a batch and poll status (examples):
 
 ```bash
-.venv/bin/curl -s -X POST "http://127.0.0.1:8000/batch" -H "Content-Type: application/json" -d '["hello","world"]'
+curl -s -X POST http://127.0.0.1:8000/batch -H "Content-Type: application/json" -d '["hello","world"]'
+curl -s http://127.0.0.1:8000/batch/<batch_id>/status
+curl -s http://127.0.0.1:8000/batch/<batch_id>/results
 ```
 
-Design
-- Concurrency: `process_batch` launches asyncio tasks for each prompt but uses an `asyncio.Semaphore` to limit concurrent outbound calls (default `concurrency=10`). To change concurrency, either modify the default in `app/worker.py` or pass a different value where `process_batch` is scheduled, e.g. `background.add_task(process_batch, batch_id, prompts, 20)`.
-- Retry/backoff: `call_with_retries` implements exponential backoff on HTTP 429 responses.
-- Aggregation: Completed results are written to `data/results_{batch_id}.json` and progress to `data/progress_{batch_id}.json`.
+Architecture Flow Diagram
+- The diagram below maps the main flow: the FastAPI endpoint schedules the background
+  worker pool (asyncio tasks) which uses a Semaphore to bound concurrent external calls.
+  Each worker call uses `call_with_retries` to implement retry/backoff on 429 responses
+  and the worker writes progress and results to SQLite (`data/db.sqlite3`) via `app/db.py`.
 
-Architecture Diagram
-- See `docs/diagram.svg` (embedded below).
+![Architecture Flow Diagram](docs/diagram.svg)
 
-![Architecture diagram](docs/diagram.svg)
-
-API examples
-- Submit batch (202 Accepted):
-
-```json
-{ "batch_id": "<uuid>", "status": "accepted" }
-```
-
-- Status (200 OK):
-
-```json
-{ "batch_id": "<uuid>", "total": 1000, "completed": 400 }
-```
-
-- Results (200 OK):
-
-```json
-{ "batch_id": "<uuid>", "results": [ {"prompt":"...","result":{...}}, ... ] }
-```
+End-to-end helper
+- During development a small helper script was used at `/tmp/e2e_db2.sh` that demonstrates
+  posting a batch, polling `/batch/{id}/status` until all prompts complete, and printing
+  `/batch/{id}/results`.
 
 Testing
 - Unit tests: run `.venv/bin/python -m pytest -q`.
-- Local E2E: start the server and use the `/batch`, `/batch/{id}/status` and `/batch/{id}/results` endpoints as shown above.
+- Suggested next step: add an integration test that starts the app and validates the DB-backed
+  lifecycle of a batch (submit → poll status → fetch results).
 
-Troubleshooting
-- Port already in use: change `--port` or kill the process using the port (`lsof -i:8000`).
-- `uvicorn` missing: install it in the venv with `.venv/bin/pip install uvicorn`.
-- Python 3.14 httpx/httpcore issues: some test helpers (Starlette/FastAPI TestClient) import `httpx`/`httpcore` which may be incompatible with Python 3.14; if tests fail, either upgrade `httpx`/`httpcore` (`.venv/bin/pip install -U httpx httpcore`) or run tests under Python 3.11/3.12.
+Notes
+- The service uses SQLite as the single source of truth for progress and results.
 
 CI
-- `.github/workflows/ci.yml` runs the unit tests on push/PR.
-
-Notes and next steps
-- Consider replacing JSON file persistence with SQLite for atomic updates and easier status queries.
-- Add graceful shutdown handling if you rely on background tasks for progress durability.
+- See `.github/workflows/ci.yml` for the CI configuration (runs unit tests).
