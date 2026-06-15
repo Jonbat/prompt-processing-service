@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 import logging
+import os
 from typing import Any, Callable, Dict, List
 
 # This worker always calls the local mock external API implementation
@@ -9,6 +10,22 @@ from typing import Any, Callable, Dict, List
 # development simplicity.
 
 RESULT_DIR = "/workspaces/ai-batch-service/data"
+
+
+def _write_progress(batch_id: str, total: int, completed: int):
+    """Persist a small progress JSON file for the batch.
+
+    This is used by the status endpoint to report real-time progress.
+    """
+    try:
+        os.makedirs(RESULT_DIR, exist_ok=True)
+        tmp = os.path.join(RESULT_DIR, f"progress_{batch_id}.json.tmp")
+        final = os.path.join(RESULT_DIR, f"progress_{batch_id}.json")
+        with open(tmp, "w") as f:
+            json.dump({"batch_id": batch_id, "total": total, "completed": completed}, f)
+        os.replace(tmp, final)
+    except Exception:
+        logging.getLogger("uvicorn.error").exception("failed writing progress file")
 
 
 async def _call_external(prompt: Dict[str, Any]):
@@ -53,6 +70,11 @@ async def process_batch(batch_id: str, prompts: List[str], concurrency: int = 10
 
     results = []
     semaphore = asyncio.Semaphore(concurrency)
+    total = len(prompts) if prompts else 0
+    completed = 0
+
+    # write initial progress
+    _write_progress(batch_id, total, completed)
 
     async def worker(prompt_text: str):
         async with semaphore:
@@ -71,6 +93,10 @@ async def process_batch(batch_id: str, prompts: List[str], concurrency: int = 10
             else:
                 results.append({"prompt": prompt_text, "error": f"status {status}"})
                 logging.getLogger("uvicorn.error").info(f"processed prompt error: {prompt_text} -> {status}")
+            # update progress after each prompt processed
+            nonlocal completed
+            completed += 1
+            _write_progress(batch_id, total, completed)
 
     tasks = [asyncio.create_task(worker(p)) for p in prompts]
     try:

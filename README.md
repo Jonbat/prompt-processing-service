@@ -1,4 +1,4 @@
-# AI Batch Service (minimal)
+# AI Prompt Batch Processing Service
 
 Summary
 - A small FastAPI service that accepts a batch of prompts, processes them concurrently against a mock rate-limited inference endpoint, and aggregates results to JSON files.

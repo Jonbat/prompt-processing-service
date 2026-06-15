@@ -8,6 +8,8 @@ from fastapi import BackgroundTasks, FastAPI, File, UploadFile, HTTPException, B
 from fastapi.responses import JSONResponse
 
 from .worker import process_batch
+import os
+import json
 
 app = FastAPI(title="AI Batch Service")
 
@@ -47,6 +49,30 @@ async def get_results(batch_id: str):
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Results not ready")
     return data
+
+
+@app.get("/batch/{batch_id}/status")
+async def get_status(batch_id: str):
+    path = f"/workspaces/ai-batch-service/data/progress_{batch_id}.json"
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            raise HTTPException(status_code=500, detail="Unable to read progress file")
+
+    # If no progress file exists, check if results exist (completed)
+    results_path = f"/workspaces/ai-batch-service/data/results_{batch_id}.json"
+    if os.path.exists(results_path):
+        try:
+            with open(results_path, "r") as f:
+                data = json.load(f)
+            total = len(data.get("results", []))
+            return {"batch_id": batch_id, "total": total, "completed": total}
+        except Exception:
+            raise HTTPException(status_code=500, detail="Unable to read results file")
+
+    raise HTTPException(status_code=404, detail="Batch not found or not started yet")
 
 
 @app.post("/mock_external_api")
