@@ -56,9 +56,9 @@
   <path d="M520,205 L420,190" class="arrow" />
 
   <!-- Results endpoint back to client -->
-  <path d="M420,250 L320,250" class="arrow" />
-  <rect x="260" y="230" width="120" height="40" class="box" />
-  <text x="320" y="255" text-anchor="middle" class="small">GET /batch/{id}/results</text>
+  <path d="M420,270 L320,270" class="arrow" />
+  <rect x="260" y="250" width="180" height="48" class="box" />
+  <text x="350" y="281" text-anchor="middle" class="small">GET /batch/{id}/results</text>
 
   <!-- Notes -->
   <text x="20" y="350" class="small">Notes: background processing, bounded concurrency, retries/backoff, SQLite as the single source of truth for progress/results</text>
