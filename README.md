@@ -25,10 +25,58 @@ Architecture Diagram
 Testing
 - Unit tests use `pytest` and `pytest-asyncio`. The retry behavior is tested in `tests/test_retry.py` by simulating 429 responses with a mock call.
 
+Local testing (end-to-end)
+Follow these steps to run and test the service locally.
+
+1. Create and activate a virtual environment, then install dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. Run the unit tests:
+
+```bash
+.venv/bin/python -m pytest -q
+```
+
+3. Start the server (project root):
+
+```bash
+.venv/bin/python -m uvicorn app.main:app --reload --port 8000
+```
+
+4. Submit a small batch (example):
+
+```bash
+curl -s -X POST "http://127.0.0.1:8000/batch" \
+	-H "Content-Type: application/json" \
+	-d '["prompt one","prompt two","prompt three"]' | jq
+```
+
+5. Poll job status (replace <batch_id> with returned id):
+
+```bash
+curl -s http://127.0.0.1:8000/batch/<batch_id>/status | jq
+```
+
+6. Retrieve results when complete:
+
+```bash
+curl -s http://127.0.0.1:8000/batch/<batch_id>/results | jq
+```
+
+7. Cleanup (optional):
+
+```bash
+rm -rf data/progress_<batch_id>.json data/results_<batch_id>.json data/log_<batch_id>.txt data/processing_<batch_id>.txt
+```
+
+Notes
+- If `uvicorn` is not installed into your active environment, install it with `pip install uvicorn` inside the venv.
+- The status endpoint reads `data/progress_<batch_id>.json` written by the worker; if that file is absent but `results_<batch_id>.json` exists the status endpoint will show completed counts.
+
 CI
 - Basic GitHub Actions workflow at `.github/workflows/ci.yml` runs tests on push/pull requests.
-
-Next steps you might want
-- Add persistent DB (SQLite/Postgres) instead of JSON files.
-- Add status tracking endpoint to report progress of a running batch.
-- Add instrumentation and graceful shutdown handling for background tasks.
