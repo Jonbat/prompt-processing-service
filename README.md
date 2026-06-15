@@ -1,82 +1,70 @@
 # AI Prompt Batch Processing Service
 
 Summary
-- A small FastAPI service that accepts a batch of prompts, processes them concurrently against a mock rate-limited inference endpoint, and aggregates results to JSON files.
+- Minimal FastAPI service that accepts a JSON array of prompts, processes them concurrently against a mock rate-limited inference endpoint, and writes aggregated results to JSON files under `data/`.
 
-Quickstart
-- Create a virtualenv and install: `pip install -r requirements.txt`
-- Run the app: `uvicorn app.main:app --reload --port 8000`
-- Submit a batch (example using `curl`):
-
-```bash
-curl -X POST "http://127.0.0.1:8000/batch" -H "Content-Type: application/json" -d '["hello","world"]'
-```
-
-Design
-- Concurrency: Uses `asyncio.Semaphore` to bound concurrent outbound requests (default `concurrency=10` in `process_batch`). Workers are created as tasks but concurrency enforced by the semaphore to avoid unbounded concurrency.
-- Retry / Backoff: `call_with_retries` implements basic exponential backoff for HTTP 429 responses (configurable `max_retries` and `base_backoff`).
-- Aggregation: Results are saved to `data/results_{batch_id}.json` once the batch completes.
-
-Architecture Diagram
-- Visual architecture is available below and in `docs/diagram.svg`.
-
-![Architecture diagram](docs/diagram.svg)
-
-Testing
-- Unit tests use `pytest` and `pytest-asyncio`. The retry behavior is tested in `tests/test_retry.py` by simulating 429 responses with a mock call.
-
-Local testing (end-to-end)
-Follow these steps to run and test the service locally.
-
-1. Create and activate a virtual environment, then install dependencies:
+Quickstart (minimal)
+1. Create and activate a virtual environment and install dependencies:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+.venv/bin/pip install -r requirements.txt
 ```
 
-2. Run the unit tests:
-
-```bash
-.venv/bin/python -m pytest -q
-```
-
-3. Start the server (project root):
+2. Start the server (from project root):
 
 ```bash
 .venv/bin/python -m uvicorn app.main:app --reload --port 8000
 ```
 
-4. Submit a small batch (example):
+3. Submit a batch (example):
 
 ```bash
-curl -s -X POST "http://127.0.0.1:8000/batch" \
-	-H "Content-Type: application/json" \
-	-d '["prompt one","prompt two","prompt three"]' | jq
+.venv/bin/curl -s -X POST "http://127.0.0.1:8000/batch" -H "Content-Type: application/json" -d '["hello","world"]'
 ```
 
-5. Poll job status (replace <batch_id> with returned id):
+Design
+- Concurrency: `process_batch` launches asyncio tasks for each prompt but uses an `asyncio.Semaphore` to limit concurrent outbound calls (default `concurrency=10`). To change concurrency, either modify the default in `app/worker.py` or pass a different value where `process_batch` is scheduled, e.g. `background.add_task(process_batch, batch_id, prompts, 20)`.
+- Retry/backoff: `call_with_retries` implements exponential backoff on HTTP 429 responses.
+- Aggregation: Completed results are written to `data/results_{batch_id}.json` and progress to `data/progress_{batch_id}.json`.
 
-```bash
-curl -s http://127.0.0.1:8000/batch/<batch_id>/status | jq
+Architecture Diagram
+- See `docs/diagram.svg` (embedded below).
+
+![Architecture diagram](docs/diagram.svg)
+
+API examples
+- Submit batch (202 Accepted):
+
+```json
+{ "batch_id": "<uuid>", "status": "accepted" }
 ```
 
-6. Retrieve results when complete:
+- Status (200 OK):
 
-```bash
-curl -s http://127.0.0.1:8000/batch/<batch_id>/results | jq
+```json
+{ "batch_id": "<uuid>", "total": 1000, "completed": 400 }
 ```
 
-7. Cleanup (optional):
+- Results (200 OK):
 
-```bash
-rm -rf data/progress_<batch_id>.json data/results_<batch_id>.json data/log_<batch_id>.txt data/processing_<batch_id>.txt
+```json
+{ "batch_id": "<uuid>", "results": [ {"prompt":"...","result":{...}}, ... ] }
 ```
 
-Notes
-- If `uvicorn` is not installed into your active environment, install it with `pip install uvicorn` inside the venv.
-- The status endpoint reads `data/progress_<batch_id>.json` written by the worker; if that file is absent but `results_<batch_id>.json` exists the status endpoint will show completed counts.
+Testing
+- Unit tests: run `.venv/bin/python -m pytest -q`.
+- Local E2E: start the server and use the `/batch`, `/batch/{id}/status` and `/batch/{id}/results` endpoints as shown above.
+
+Troubleshooting
+- Port already in use: change `--port` or kill the process using the port (`lsof -i:8000`).
+- `uvicorn` missing: install it in the venv with `.venv/bin/pip install uvicorn`.
+- Python 3.14 httpx/httpcore issues: some test helpers (Starlette/FastAPI TestClient) import `httpx`/`httpcore` which may be incompatible with Python 3.14; if tests fail, either upgrade `httpx`/`httpcore` (`.venv/bin/pip install -U httpx httpcore`) or run tests under Python 3.11/3.12.
 
 CI
-- Basic GitHub Actions workflow at `.github/workflows/ci.yml` runs tests on push/pull requests.
+- `.github/workflows/ci.yml` runs the unit tests on push/PR.
+
+Notes and next steps
+- Consider replacing JSON file persistence with SQLite for atomic updates and easier status queries.
+- Add graceful shutdown handling if you rely on background tasks for progress durability.
