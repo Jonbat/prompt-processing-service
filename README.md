@@ -1,6 +1,6 @@
 # AI Prompt Batch Processing Service
 
-Minimal FastAPI demo that accepts a JSON batch of prompts, processes them concurrently
+Minimal FastAPI that accepts a JSON batch of prompts, processes them concurrently
 against an in-process mock inference endpoint, and persists progress/results to SQLite.
 
 Summary
@@ -58,13 +58,7 @@ Testing
   lifecycle of a batch (submit → poll status → fetch results).
 
 Notes
-- The service now uses SQLite as the single source of truth for progress and results.
-- If you previously used JSON files (data/results_*.json), consider migrating them to the DB
-  for atomic updates and simpler queries.
+- The service uses SQLite as the single source of truth for progress and results.
 
 CI
 - See `.github/workflows/ci.yml` for the CI configuration (runs unit tests).
-
-Contributing
-- If you want me to add an automated integration test or commit the E2E script into the
-  repository, say the word and I will add it.
